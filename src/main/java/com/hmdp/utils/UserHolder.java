@@ -1,8 +1,6 @@
 package com.hmdp.utils;
 
 import com.hmdp.dto.UserDTO;
-import com.hmdp.entity.User;
-
 /**
  * @author codeep
  * @date 2023/7/29
