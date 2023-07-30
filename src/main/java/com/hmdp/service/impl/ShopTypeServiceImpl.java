@@ -32,11 +32,11 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
 
         String key = "cache:shop_list";
         // 1. 从 Redis 中查询商铺缓存
-        String shop_list = stringRedisTemplate.opsForValue().get(key);
+        String shopTypeListJson = stringRedisTemplate.opsForValue().get(key);
         // 2. 判断缓存是否命中
-        if (StrUtil.isNotBlank(shop_list)) {
+        if (StrUtil.isNotBlank(shopTypeListJson)) {
             // 3. 命中返回店铺信息
-            return JSONUtil.toList(shop_list, ShopType.class);
+            return JSONUtil.toList(shopTypeListJson, ShopType.class);
         }
         // 4. 未命中直接查询数据库
         List<ShopType> shopTypeList = query().orderByAsc("sort").list();
