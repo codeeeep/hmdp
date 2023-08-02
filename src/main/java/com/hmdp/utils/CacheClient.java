@@ -111,6 +111,18 @@ public class CacheClient {
             new ThreadPoolExecutor.CallerRunsPolicy()
     );
 
+    /**
+     * 根据指定的 key 查询缓存，并反序列化为指定类型，并且可以利用逻辑过期时间来解决缓存击穿问题
+     * @param prefix key 值前缀
+     * @param id 查询的 id
+     * @param type 返回的实体 class 类型
+     * @param dbFallback 函数式编程：传入操作具体表的查函数
+     * @param time 过期时间
+     * @param timeUnit 过期单位
+     * @param <R> 返回的实体类型
+     * @param <ID> id 类型
+     * @return 查询的实体对象
+     */
     public <R, ID> R queryWithLogicalExpire
             (String prefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit timeUnit) {
         String key = prefix + id;
@@ -158,7 +170,7 @@ public class CacheClient {
                     // 查询数据库
                     R apply = dbFallback.apply(id);
                     // 写入缓存
-                    this.setWithLogicalExpire(key, r, time, timeUnit);
+                    this.setWithLogicalExpire(key, apply, time, timeUnit);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
