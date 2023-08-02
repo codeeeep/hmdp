@@ -9,6 +9,7 @@ import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.mapper.ShopMapper;
 import com.hmdp.service.IShopService;
+import com.hmdp.utils.CacheClient;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RedisData;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -36,6 +37,9 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     @Resource
     private StringRedisTemplate stringRedisTemplate;
 
+    @Resource
+    private CacheClient cacheClient;
+
 
     @Override
     public Result queryById(Long id) {
@@ -45,7 +49,16 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 互斥锁解决缓存击穿(代码存档以表纪念 :) )
         // Shop shop = queryWithMutex(id);
 
-        Shop shop = queryWithLogicalExpire(id);
+        // 逻辑过期解决缓存击穿(代码存档以表纪念 :) )
+        // Shop shop = queryWithLogicalExpire(id);
+
+        // 自己写的缓存工具类实现缓存穿透
+        // Shop shop =
+        //         cacheClient.queryWithPassThrough(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
+
+        // 逻辑过期时间设短点，方便预热后快速逻辑过期，看看会不会在 1 s 高并发下重建 1 次
+        Shop shop =
+                cacheClient.queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, 20L, TimeUnit.SECONDS);
         if (shop == null) {
             return Result.fail("店铺 id 不存在");
         }
