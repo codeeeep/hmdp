@@ -51,10 +51,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (stock < 1) {
             return Result.fail("已抢完，下次再来吧");
         }
-        // 4. 扣减库存
+        // 4. 扣减库存(使用 CAS 法乐观锁解决超卖问题，stock 相当于版本号)
         boolean success = seckillVoucherService.update()
+                // set stock = stock - 1
                 .setSql("stock = stock - 1")
-                .eq("voucher_id", voucherId).update();
+                // where id = ? and stock = ?
+                .eq("voucher_id", voucherId).gt("stock", 0)
+                .update();
         if (!success) {
             return Result.fail("已抢完，下次再来吧");
         }
@@ -68,6 +71,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setUserId(userId);
         // 5.3 代金券 id
         voucherOrder.setVoucherId(voucherId);
+        save(voucherOrder);
         // 6. 返回订单 id
         return Result.ok(orderId);
     }
