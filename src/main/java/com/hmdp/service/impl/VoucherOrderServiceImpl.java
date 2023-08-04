@@ -9,6 +9,7 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +33,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker redisIdWorker;
 
-    @Transactional
     @Override
     public Result seckillVoucher(Long voucherId) {
         // 1. 查询优惠券信息
@@ -51,6 +51,27 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         if (stock < 1) {
             return Result.fail("已抢完，下次再来吧");
         }
+
+        Long userId = UserHolder.getUser().getId();
+        synchronized (userId.toString().intern()) {
+            // 获取代理对象（事务）事务失效的几种情况
+            IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
+            return proxy.createVoucherOrder(voucherId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public Result createVoucherOrder(Long voucherId) {
+        // 4. 一人一单
+        Long userId = UserHolder.getUser().getId();
+        // 4.1 查询订单
+        int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        // 4.2 判断是否存在
+        if (count > 1) {
+            return Result.fail("请勿重复购买");
+        }
+        // 4.3 不存在扣减库存
         // 4. 扣减库存(使用 CAS 法乐观锁解决超卖问题，stock 相当于版本号)
         boolean success = seckillVoucherService.update()
                 // set stock = stock - 1
@@ -67,7 +88,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         long orderId = redisIdWorker.getId("order");
         voucherOrder.setId(orderId);
         // 5.2 用户 id
-        Long userId = UserHolder.getUser().getId();
         voucherOrder.setUserId(userId);
         // 5.3 代金券 id
         voucherOrder.setVoucherId(voucherId);
