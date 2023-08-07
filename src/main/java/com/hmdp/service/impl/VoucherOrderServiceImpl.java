@@ -8,8 +8,10 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisIdWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker redisIdWorker;
 
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
+
     @Override
     public Result seckillVoucher(Long voucherId) {
         // 1. 查询优惠券信息
@@ -53,11 +58,23 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
 
         Long userId = UserHolder.getUser().getId();
-        synchronized (userId.toString().intern()) {
+        // 创建锁对象
+        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + userId);
+        // 获取锁, 为避免死锁设置了超时时间，按道理应该是业务时间的 10 倍左右，但是因为后面要打断点，故我把时间设置长点
+        boolean isLock = lock.tryLock(1200);
+        // 判断是否获取锁成功
+        if (!isLock) {
+            // 失败则返回异常或者重试
+            return Result.fail("请勿重复抢票");
+        }
+        try {
             // 获取代理对象（事务）事务失效的几种情况
             IVoucherOrderService proxy = (IVoucherOrderService) AopContext.currentProxy();
             return proxy.createVoucherOrder(voucherId);
+        } finally {
+            lock.unlock();
         }
+
     }
 
     @Override
@@ -68,7 +85,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         // 4.1 查询订单
         int count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
         // 4.2 判断是否存在
-        if (count > 1) {
+        if (count > 0) {
             return Result.fail("请勿重复购买");
         }
         // 4.3 不存在扣减库存

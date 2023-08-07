@@ -306,4 +306,10 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 3. 写入 Redis
         stringRedisTemplate.opsForValue().set(CACHE_SHOP_KEY + id, JSONUtil.toJsonStr(redisData));
     }
+
+    public boolean saveLock(String key) {
+        Boolean lock = stringRedisTemplate.opsForValue().setIfAbsent(key, 1 + "");
+        return Boolean.TRUE.equals(lock);
+    }
+
 }
