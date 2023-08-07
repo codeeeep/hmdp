@@ -60,7 +60,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = UserHolder.getUser().getId();
         // 创建锁对象
         SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + userId);
-        // 获取锁, 为避免死锁设置了超时时间，按道理应该是业务时间的 10 倍左右，但是因为后面要打断点，故我把时间设置长点
+        // TODO:获取锁, 为避免死锁设置了超时时间，按道理应该是业务时间的 10 倍左右，但是因为后面要打断点，故我把时间设置长点
         boolean isLock = lock.tryLock(1200);
         // 判断是否获取锁成功
         if (!isLock) {
